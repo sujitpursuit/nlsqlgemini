@@ -74,7 +74,7 @@ def nl_sql_nl_gemini(sql_prompt):
 
     explain_result=explain_sql_results_gemini.explain_result(sql_prompt, sql_result)
     return explain_result
-
+@cross_origin()
 @app.route('/nlsql/', methods=['GET', 'POST'])
 def prompt_process():
     sql_prompt = request.args.get('prompt')
