@@ -2,14 +2,23 @@
 import run_sql
 import explain_sql_results_gemini
 import google.generativeai as genai
+import pandas as pd
 
 import os
 
 from flask import Flask, request,jsonify
 from flask_cors import CORS
 
+class response_object:
+    def __init__(self, sql_query, sql_result, result_summary):
+        self.sql_query = sql_query
+        self.sql_result = sql_result
+        self.result_summary = result_summary
+
 app = Flask(__name__)
 CORS(app)
+
+MAX_GEN_RETRY=3
 
 def parse_triple_quotes(in_str):
 # Parse out the string after ```sql and before ```
@@ -56,39 +65,63 @@ def nl_sql_nl_gemini(sql_prompt):
 
     models = genai.GenerativeModel('gemini-pro')
     response = models.generate_content(   prompt + "\n\n Generate SQL for : " + sql_prompt,
-                                          generation_config=genai.types.GenerationConfig(temperature=1.0)
+                                          generation_config=genai.types.GenerationConfig(temperature=0)
                                       )
     sql_string = response.text
-  ####
-    print(sql_string)
+ 
+    print(f'SQL Generated {sql_string}')
     if ( sql_string.find("```sql") != -1   or   sql_string.find("```SQL") != -1 ) :
         sql_string=parse_triple_quotes(sql_string)
 
-    sql_result=''
-    #sql_result=run_sql.execute_query_cursor(sql_string)
-    for x in range(3):
+    sql_result=pd.DataFrame()
+  
+
+    #Try generating three times if it gives SQL error
+    for x in range(MAX_GEN_RETRY):
 
       try:
         sql_result=run_sql.execute_query_df(sql_string)
         break
+
       except:
         continue
 
     explain_result=explain_sql_results_gemini.explain_result(sql_prompt, sql_result)
-    return explain_result
+  
+    sql_result_json=sql_result.to_json(orient='records')
+
+    #print ('DF to JSON\n'+sql_result_json)
+
+    return_response = response_object(sql_string, sql_result_json, explain_result)
+   
+    return return_response
 
 @app.route('/nlsql/', methods=['GET', 'POST'])
 def prompt_process():
     sql_prompt = request.args.get('prompt')
-    if (not sql_prompt):
-        sql_prompt = request.form.get('prompt')
-    if (  sql_prompt ):
-      print(f'PROMPT RECEIEVED {sql_prompt}')
-      explain_result=nl_sql_nl_gemini (sql_prompt)
-    else:
-       explain_result="No prompt given. Please provide prompt as argument"
+
+    detail_flag = request.args.get('detail')
+    if not detail_flag: 
+       detail_flag='N'
+
     
-    return jsonify(explain_result)
+
+    if (  sql_prompt ):
+     
+      return_response=nl_sql_nl_gemini (sql_prompt)
+
+      if (detail_flag.upper()=="Y"):
+        #Send query, results and summary
+        return vars(return_response)
+      else:
+        #send only summary
+        return  f"\"result_summary\": \"{return_response.result_summary}\""
+      
+    else:
+       return("No prompt given. Please provide prompt as argument")
+    
+  
+    
    
 
 
