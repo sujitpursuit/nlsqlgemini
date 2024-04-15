@@ -6,7 +6,7 @@ import pandas as pd
 
 import os
 
-from flask import Flask, request,jsonify
+from flask import Flask, request,jsonify, Response
 from flask_cors import CORS
 
 class response_object:
@@ -115,7 +115,9 @@ def prompt_process():
         return vars(return_response)
       else:
         #send only summary
-        return  f"\"result_summary\": \"{return_response.result_summary}\""
+        return  {
+           "result_summary" : return_response.result_summary
+        }
       
     else:
        return("No prompt given. Please provide prompt as argument")
