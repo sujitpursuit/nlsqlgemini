@@ -7,7 +7,9 @@ import pandas as pd
 import os
 
 from flask import Flask, request,jsonify, Response
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
+
+
 
 class response_object:
     def __init__(self, sql_query, sql_result, result_summary):
@@ -16,7 +18,8 @@ class response_object:
         self.result_summary = result_summary
 
 app = Flask(__name__)
-CORS(app)
+cors = CORS(app)
+app.config['CORS_HEADERS'] = 'Content-Type'
 
 MAX_GEN_RETRY=3
 
@@ -26,7 +29,7 @@ def parse_triple_quotes(in_str):
   start = in_str.find("```sql") + len("```sql\n")  # Start after ```sql and the newline
   end = in_str.rfind("```")  # Find the last occurrence of ```
   out_str = in_str[start:end].strip()  # Extract the SQL query and strip leading/trailing whitespace
-  print(f'OUTPUT STRING {out_str}')
+  #print(f'OUTPUT STRING {out_str}')
   return out_str
 
 def nl_sql_nl_gemini(sql_prompt):
@@ -64,7 +67,8 @@ def nl_sql_nl_gemini(sql_prompt):
     """
 
     models = genai.GenerativeModel('gemini-pro')
-    response = models.generate_content(   prompt + "\n\n Generate SQL for : " + sql_prompt,
+    response = models.generate_content(prompt + "\n\n Generate SQL for : " + sql_prompt,
+
                                           generation_config=genai.types.GenerationConfig(temperature=0)
                                       )
     sql_string = response.text
@@ -97,6 +101,7 @@ def nl_sql_nl_gemini(sql_prompt):
     return return_response
 
 @app.route('/nlsql/', methods=['GET', 'POST'])
+@cross_origin()
 def prompt_process():
     sql_prompt = request.args.get('prompt')
 
@@ -116,7 +121,8 @@ def prompt_process():
       else:
         #send only summary
         return  {
-           "result_summary" : return_response.result_summary
+           "result_summary" : return_response.result_summary,
+           
         }
       
     else:
